@@ -8,8 +8,17 @@ module S3 =
 
     let downloadFile (bucket: string) (key: string) : Async<byte[]> =
         async {
+            let endpoint = System.Environment.GetEnvironmentVariable("S3_ENDPOINT")
+            let region = System.Environment.GetEnvironmentVariable("AWS_REGION")
+            
+            let config = AmazonS3Config()
+            if not (System.String.IsNullOrWhiteSpace(endpoint)) then
+                config.ServiceURL <- endpoint
+            elif not (System.String.IsNullOrWhiteSpace(region)) then
+                config.RegionEndpoint <- Amazon.RegionEndpoint.GetBySystemName(region)
+
             // Assumes credentials are in environment variables or ~/.aws/credentials
-            use client = new AmazonS3Client()
+            use client = new AmazonS3Client(config)
             let request = GetObjectRequest(BucketName = bucket, Key = key)
             
             try

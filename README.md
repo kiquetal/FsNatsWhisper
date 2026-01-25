@@ -57,7 +57,21 @@ The following ASCII diagram illustrates the flow of data through the system:
 
 ## Configuration
 
-The application expects an S3-compatible environment. Ensure your AWS credentials (or Tigris credentials) are configured in your environment variables or `~/.aws/credentials`.
+The application expects an S3-compatible environment and a NATS server.
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NATS_URL` | The URL of the NATS server. | `nats://localhost:4222` |
+| `NATS_SUBJECT` | The NATS subject to subscribe to for transcription requests. | `audio.transcription.request` |
+| `NATS_RESULT_SUBJECT` | The NATS subject to publish transcription results to (if no `ReplyTo` is provided). | `audio.transcription.result` |
+| `AWS_ACCESS_KEY_ID` | S3/Tigris Access Key. | (Required) |
+| `AWS_SECRET_ACCESS_KEY` | S3/Tigris Secret Key. | (Required) |
+| `AWS_REGION` | S3 Region (e.g., `auto` for Tigris). | `us-east-1` |
+| `S3_ENDPOINT` | Custom S3 endpoint (e.g., `https://fly.storage.tigris.dev`). | (Optional) |
+
+Ensure your credentials are configured in your environment variables or `~/.aws/credentials`.
 
 ## Message Format
 

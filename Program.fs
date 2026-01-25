@@ -9,7 +9,7 @@ open System.Threading.Tasks
 
 module Program =
 
-    let processRequest (nats: INatsConnection) (msg: NatsMsg<NatsMemoryOwner<byte>>) =
+    let processRequest (nats: INatsConnection) (defaultResultSubject: string) (msg: NatsMsg<NatsMemoryOwner<byte>>) =
         task {
             try
                 // msg.Data is NatsMemoryOwner<byte>
@@ -44,11 +44,11 @@ module Program =
                     
                     // Reply
                     if not (String.IsNullOrEmpty(msg.ReplyTo)) then
-                        do! nats.PublishAsync(msg.ReplyTo, resultJson).AsTask() :> Task
+                        do! nats.PublishAsync(msg.ReplyTo, resultJson).AsTask()
                     else
-                        do! nats.PublishAsync("audio.transcription.result", resultJson).AsTask() :> Task
+                        do! nats.PublishAsync(defaultResultSubject, resultJson).AsTask()
                         
-                    printfn "Result published."
+                    printfn "Result published to %s" (if String.IsNullOrEmpty(msg.ReplyTo) then defaultResultSubject else msg.ReplyTo)
                 
             with ex ->
                 printfn "Error processing message: %s" ex.Message
@@ -59,28 +59,37 @@ module Program =
         let t = task {
             printfn "Starting FsNatsWhisper Service..."
             
-            let url = "nats://localhost:4222"
+            let natsUrl = Environment.GetEnvironmentVariable("NATS_URL") 
+                          |> Option.ofObj 
+                          |> Option.defaultValue "nats://localhost:4222"
             
+            let natsSubject = Environment.GetEnvironmentVariable("NATS_SUBJECT")
+                              |> Option.ofObj
+                              |> Option.defaultValue "audio.transcription.request"
+
+            let natsResultSubject = Environment.GetEnvironmentVariable("NATS_RESULT_SUBJECT")
+                                    |> Option.ofObj
+                                    |> Option.defaultValue "audio.transcription.result"
+
             // Connect to NATS
-            let opts = NatsOpts(Url = url)
+            let opts = NatsOpts(Url = natsUrl)
             use nats = new NatsConnection(opts)
             
-            printfn "Connected to NATS at %s" url
+            printfn "Connected to NATS at %s" natsUrl
 
             // Subscribe
-            let subject = "audio.transcription.request"
-            printfn "Subscribing to %s..." subject
+            printfn "Subscribing to %s..." natsSubject
             
             // SubscribeCoreAsync returns INatsSub, which is IAsyncDisposable
             // We need to pass the serializer or use default raw bytes
-            use! sub = nats.SubscribeCoreAsync<NatsMemoryOwner<byte>>(subject)
+            use! sub = nats.SubscribeCoreAsync<NatsMemoryOwner<byte>>(natsSubject)
             
             printfn "Listening for messages..."
             
             while! sub.Msgs.WaitToReadAsync().AsTask() do
                 let mutable msg = Unchecked.defaultof<NatsMsg<NatsMemoryOwner<byte>>>
                 while sub.Msgs.TryRead(&msg) do
-                    do! processRequest nats msg
+                    do! processRequest nats natsResultSubject msg
 
             return 0
         }
