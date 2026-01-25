@@ -65,6 +65,8 @@ The application expects an S3-compatible environment and a NATS server.
 |----------|-------------|---------|
 | `NATS_URL` | The URL of the NATS server. | `nats://localhost:4222` |
 | `NATS_SUBJECT` | The NATS subject to subscribe to for transcription requests. | `file.uploads` |
+| `NATS_STREAM_NAME` | The JetStream stream name containing the messages. | `FILE_UPLOADS` |
+| `NATS_CONSUMER_NAME` | The JetStream durable consumer name. | `transcription-worker` |
 | `NATS_RESULT_SUBJECT` | The NATS subject to publish transcription results to (if no `ReplyTo` is provided). | `audio.transcription.result` |
 | `AWS_ACCESS_KEY_ID` | S3/Tigris Access Key. | (Required) |
 | `AWS_SECRET_ACCESS_KEY` | S3/Tigris Secret Key. | (Required) |
