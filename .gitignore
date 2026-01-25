@@ -1,0 +1,33 @@
+# .NET Core
+bin/
+obj/
+
+# Visual Studio / VS Code / JetBrains
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Whisper Models (large files)
+*.bin
+*.ggml
+models/
+
+# Audio Files (large files)
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.pdb
+*.dll
+*.exe
