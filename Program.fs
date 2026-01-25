@@ -65,7 +65,7 @@ module Program =
             
             let natsSubject = Environment.GetEnvironmentVariable("NATS_SUBJECT")
                               |> Option.ofObj
-                              |> Option.defaultValue "audio.transcription.request"
+                              |> Option.defaultValue "file.uploads"
 
             let natsResultSubject = Environment.GetEnvironmentVariable("NATS_RESULT_SUBJECT")
                                     |> Option.ofObj

@@ -11,7 +11,7 @@ The following ASCII diagram illustrates the flow of data through the system:
                                     |  NATS Server    |
                                     +--------+--------+
                                              |
-    [External Publisher]                     | (1) Subscribe: 'audio.transcription.request'
+                                    | (1) Subscribe: 'file.uploads'
              |                               v
              +--------------------> +-------------------------+
              (Publish Request)      |   FsNatsWhisper Service |
@@ -49,7 +49,7 @@ The following ASCII diagram illustrates the flow of data through the system:
 
 ## Workflow Description
 
-1.  **Subscription**: The application connects to a NATS server (default `nats://localhost:4222`) and subscribes to the subject `audio.transcription.request`.
+1.  **Subscription**: The application connects to a NATS server (default `nats://localhost:4222`) and subscribes to the subject `file.uploads`.
 2.  **File Retrieval**: Upon receiving a message, it parses the payload for S3 details (Bucket, Key) and downloads the encrypted file from the configured S3-compatible storage (e.g., Tigris).
 3.  **Decryption**: The downloaded file is decrypted using the AES-GCM algorithm. The `DecryptionKey` and `IV` (Initialization Vector) provided in the NATS message are used for this process. The system expects the authentication tag to be appended to the end of the ciphertext.
 4.  **Transcription**: The decrypted raw audio (PCM) is processed by `Whisper.net` (using the `ggml-tiny.bin` model, which is downloaded automatically if missing) to generate a text transcription.
@@ -64,7 +64,7 @@ The application expects an S3-compatible environment and a NATS server.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NATS_URL` | The URL of the NATS server. | `nats://localhost:4222` |
-| `NATS_SUBJECT` | The NATS subject to subscribe to for transcription requests. | `audio.transcription.request` |
+| `NATS_SUBJECT` | The NATS subject to subscribe to for transcription requests. | `file.uploads` |
 | `NATS_RESULT_SUBJECT` | The NATS subject to publish transcription results to (if no `ReplyTo` is provided). | `audio.transcription.result` |
 | `AWS_ACCESS_KEY_ID` | S3/Tigris Access Key. | (Required) |
 | `AWS_SECRET_ACCESS_KEY` | S3/Tigris Secret Key. | (Required) |
@@ -75,7 +75,7 @@ Ensure your credentials are configured in your environment variables or `~/.aws/
 
 ## Message Format
 
-**Request (`audio.transcription.request`):**
+**Request (`file.uploads`):**
 ```json
 {
   "Bucket": "my-audio-bucket",
