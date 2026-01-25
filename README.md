@@ -73,6 +73,30 @@ The application expects an S3-compatible environment and a NATS server.
 
 Ensure your credentials are configured in your environment variables or `~/.aws/credentials`.
 
+## Running the Application
+
+You can run the application using the .NET CLI. It is recommended to set the environment variables inline before the command to avoid persisting sensitive credentials in your shell session.
+
+### Example (Bash/Linux/macOS)
+
+```bash
+NATS_URL="nats://localhost:4222" \
+AWS_ACCESS_KEY_ID="your_access_key" \
+AWS_SECRET_ACCESS_KEY="your_secret_key" \
+AWS_REGION="auto" \
+dotnet run
+```
+
+### Example (PowerShell)
+
+```powershell
+$env:NATS_URL="nats://localhost:4222"
+$env:AWS_ACCESS_KEY_ID="your_access_key"
+$env:AWS_SECRET_ACCESS_KEY="your_secret_key"
+$env:AWS_REGION="auto"
+dotnet run
+```
+
 ## Message Format
 
 **Request (`file.uploads`):**
