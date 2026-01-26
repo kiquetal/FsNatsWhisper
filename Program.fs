@@ -7,7 +7,7 @@ open NATS.Client.Core
 open NATS.Client.JetStream
 open NATS.Client.JetStream.Models
 open FsNatsWhisper.Domain
-open System.Threading.Tasks
+open System.Text.Json.Serialization
 
 module Program =
 
@@ -23,9 +23,11 @@ module Program =
                 
                 // Deserialize with case-insensitive property names
                 let options = JsonSerializerOptions()
-                options.PropertyNameCaseInsensitive <- true
-                
-                let request = JsonSerializer.Deserialize<FileUploadRequest>(dataSpan, options)
+                options.Converters.Add(JsonFSharpConverter()) // This handles F# types properly
+
+                // Double-deserialize: first from the outer JSON string, then from the inner JSON string
+                let innerJson = JsonSerializer.Deserialize<string>(rawJson)
+                let request = JsonSerializer.Deserialize<FileUploadRequest>(innerJson, options)
                 
                 if box request = null then
                     printfn "Received empty or invalid request."
@@ -57,18 +59,7 @@ module Program =
                     // transcribe returns Async<string>, convert to Task
                     let! text = Whisper.transcribe audioBytes |> Async.StartAsTask
                     printfn "Transcription: %s" text
-                    
-                    // 4. Publish Result
-                    let result = { OriginalRequest = request; TranscribedText = text }
-                    let resultJson = JsonSerializer.Serialize(result)
-                    
-                    // Reply
-                    if not (String.IsNullOrEmpty(msg.ReplyTo)) then
-                        do! nats.PublishAsync(msg.ReplyTo, resultJson).AsTask()
-                    else
-                        do! nats.PublishAsync(defaultResultSubject, resultJson).AsTask()
-                        
-                    printfn "Result published to %s" (if String.IsNullOrEmpty(msg.ReplyTo) then defaultResultSubject else msg.ReplyTo)
+                  
                     
                     // Acknowledge the message
                     do! msg.AckAsync().AsTask()

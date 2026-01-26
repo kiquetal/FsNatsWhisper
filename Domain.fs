@@ -26,7 +26,3 @@ module Domain =
         Timestamp: int64
     }
 
-    type TranscriptionResult = {
-        OriginalRequest: FileUploadRequest
-        TranscribedText: string
-    }
