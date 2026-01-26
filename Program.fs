@@ -17,25 +17,43 @@ module Program =
                 // msg.Data is NatsMemoryOwner<byte>
                 let dataSpan = msg.Data.Span
                 
-                // Deserialize
-                let request = JsonSerializer.Deserialize<TranscriptionRequest>(dataSpan)
+                // Log raw message for debugging
+                let rawJson = System.Text.Encoding.UTF8.GetString(dataSpan)
+                printfn "Received message: %s" rawJson
+                
+                // Deserialize with case-insensitive property names
+                let options = JsonSerializerOptions()
+                options.PropertyNameCaseInsensitive <- true
+                
+                let request = JsonSerializer.Deserialize<FileUploadRequest>(dataSpan, options)
                 
                 if box request = null then
                     printfn "Received empty or invalid request."
+                    do! msg.AckAsync().AsTask() // Acknowledge to avoid reprocessing
                 else
-                    printfn "Received request for Key: %s in Bucket: %s" request.Key request.Bucket
+                    printfn "Received request for EventId: %s, Key: %s in Bucket: %s" request.EventId request.S3DataKey request.BucketName
                     
-                    // 1. Download
-                    let! encryptedBytes = S3.downloadFile request.Bucket request.Key |> Async.StartAsTask
+                    // 1. Download metadata to get encryption keys
+                    let! metadataBytes = S3.downloadFile request.BucketName request.S3MetadataKey |> Async.StartAsTask
+                    let metadataJson = System.Text.Encoding.UTF8.GetString(metadataBytes)
+                    printfn "Downloaded metadata: %s" metadataJson
+                    
+                    // Parse metadata
+                    let metadata = JsonSerializer.Deserialize<JsonElement>(metadataJson)
+                    let decryptionKeyBase64 = metadata.GetProperty("decryption_key").GetString()
+                    let ivBase64 = metadata.GetProperty("iv").GetString()
+                    
+                    // 2. Download encrypted audio file
+                    let! encryptedBytes = S3.downloadFile request.BucketName request.S3DataKey |> Async.StartAsTask
                     printfn "Downloaded %d bytes." encryptedBytes.Length
                     
-                    // 2. Decrypt
-                    let key = Convert.FromBase64String(request.DecryptionKeyBase64)
-                    let iv = Convert.FromBase64String(request.IvBase64)
+                    // 3. Decrypt
+                    let key = Convert.FromBase64String(decryptionKeyBase64)
+                    let iv = Convert.FromBase64String(ivBase64)
                     let audioBytes = Crypto.decrypt key iv encryptedBytes
                     printfn "Decrypted audio. Size: %d bytes." audioBytes.Length
                     
-                    // 3. Transcribe
+                    // 4. Transcribe
                     // transcribe returns Async<string>, convert to Task
                     let! text = Whisper.transcribe audioBytes |> Async.StartAsTask
                     printfn "Transcription: %s" text
@@ -57,6 +75,7 @@ module Program =
                 
             with ex ->
                 printfn "Error processing message: %s" ex.Message
+                printfn "Stack trace: %s" ex.StackTrace
                 // Negative acknowledge on error so message can be redelivered
                 do! msg.NakAsync().AsTask()
         }

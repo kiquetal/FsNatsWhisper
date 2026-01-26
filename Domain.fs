@@ -1,15 +1,32 @@
 namespace FsNatsWhisper
+open System.Text.Json.Serialization
 
 module Domain =
 
-    type TranscriptionRequest = {
-        Bucket: string
-        Key: string
-        DecryptionKeyBase64: string
-        IvBase64: string
+    type FileUploadRequest = {
+        [<JsonPropertyName("event_id")>]
+        EventId: string
+        
+        [<JsonPropertyName("email")>]
+        Email: string
+        
+        [<JsonPropertyName("file_uuid")>]
+        FileUuid: string
+        
+        [<JsonPropertyName("s3_data_key")>]
+        S3DataKey: string
+        
+        [<JsonPropertyName("s3_metadata_key")>]
+        S3MetadataKey: string
+        
+        [<JsonPropertyName("bucket_name")>]
+        BucketName: string
+        
+        [<JsonPropertyName("timestamp")>]
+        Timestamp: int64
     }
 
     type TranscriptionResult = {
-        OriginalRequest: TranscriptionRequest
+        OriginalRequest: FileUploadRequest
         TranscribedText: string
     }
