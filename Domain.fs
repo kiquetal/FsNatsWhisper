@@ -26,3 +26,29 @@ module Domain =
         Timestamp: int64
     }
 
+    type Metadata = {
+        [<JsonPropertyName("version")>]
+        Version: string
+        
+        [<JsonPropertyName("kek")>]
+        Kek: string
+        
+        [<JsonPropertyName("algorithm")>]
+        Algorithm: string
+        
+        [<JsonPropertyName("original_filename")>]
+        OriginalFilename: string
+        
+        [<JsonPropertyName("original_size")>]
+        OriginalSize: int64
+        
+        [<JsonPropertyName("encrypted_size")>]
+        EncryptedSize: int64
+        
+        [<JsonPropertyName("verification_status")>]
+        VerificationStatus: string
+        
+        [<JsonPropertyName("timestamp")>]
+        Timestamp: int64
+    }
+
