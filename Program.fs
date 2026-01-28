@@ -1,7 +1,6 @@
 namespace FsNatsWhisper
 
 open System
-open System.Text.Json
 open System.Threading
 open NATS.Client.Core
 open NATS.Client.JetStream
@@ -10,66 +9,6 @@ open FsNatsWhisper.Domain
 open System.Text.Json.Serialization
 
 module Program =
-
-    let processRequest (nats: INatsConnection) (defaultResultSubject: string) (msg: INatsJSMsg<NatsMemoryOwner<byte>>) =
-        task {
-            try
-                // msg.Data is NatsMemoryOwner<byte>
-                let dataSpan = msg.Data.Span
-                
-                // Log raw message for debugging
-                let rawJson = System.Text.Encoding.UTF8.GetString(dataSpan)
-                printfn "Received message: %s" rawJson
-                
-                // Deserialize with case-insensitive property names
-                let options = JsonSerializerOptions()
-                options.Converters.Add(JsonFSharpConverter()) // This handles F# types properly
-
-                // Double-deserialize: first from the outer JSON string, then from the inner JSON string
-                let innerJson = JsonSerializer.Deserialize<string>(rawJson)
-                let request = JsonSerializer.Deserialize<FileUploadRequest>(innerJson, options)
-                
-                if box request = null then
-                    printfn "Received empty or invalid request."
-                    do! msg.AckAsync().AsTask() // Acknowledge to avoid reprocessing
-                else
-                    printfn "Received request for EventId: %s, Key: %s in Bucket: %s" request.EventId request.S3DataKey request.BucketName
-                    
-                    // 1. Download metadata to get encryption keys
-                    let! metadataBytes = S3.downloadFile request.BucketName request.S3MetadataKey |> Async.StartAsTask
-                    let metadataJson = System.Text.Encoding.UTF8.GetString(metadataBytes)
-                    printfn "Downloaded metadata: %s" metadataJson
-                    
-                    // Parse metadata
-                    let metadata = JsonSerializer.Deserialize<JsonElement>(metadataJson)
-                    let decryptionKeyBase64 = metadata.GetProperty("decryption_key").GetString()
-                    let ivBase64 = metadata.GetProperty("iv").GetString()
-                    
-                    // 2. Download encrypted audio file
-                    let! encryptedBytes = S3.downloadFile request.BucketName request.S3DataKey |> Async.StartAsTask
-                    printfn "Downloaded %d bytes." encryptedBytes.Length
-                    
-                    // 3. Decrypt
-                    let key = Convert.FromBase64String(decryptionKeyBase64)
-                    let iv = Convert.FromBase64String(ivBase64)
-                    let audioBytes = Crypto.decrypt key iv encryptedBytes
-                    printfn "Decrypted audio. Size: %d bytes." audioBytes.Length
-                    
-                    // 4. Transcribe
-                    // transcribe returns Async<string>, convert to Task
-                    let! text = Whisper.transcribe audioBytes |> Async.StartAsTask
-                    printfn "Transcription: %s" text
-                  
-                    
-                    // Acknowledge the message
-                    do! msg.AckAsync().AsTask()
-                
-            with ex ->
-                printfn "Error processing message: %s" ex.Message
-                printfn "Stack trace: %s" ex.StackTrace
-                // Negative acknowledge on error so message can be redelivered
-                do! msg.NakAsync().AsTask()
-        }
 
     [<EntryPoint>]
     let main _argv =
@@ -87,6 +26,12 @@ module Program =
             try
                 printfn "Starting FsNatsWhisper Service..."
                 
+                let masterKey =
+                    Environment.GetEnvironmentVariable("MASTER_KEY")
+                    |> function
+                        | null | "" -> failwith "MASTER_KEY environment variable not set."
+                        | key -> key
+
                 let natsUrl = Environment.GetEnvironmentVariable("NATS_URL") 
                               |> Option.ofObj 
                               |> Option.defaultValue "nats://localhost:4222"
@@ -154,7 +99,7 @@ module Program =
                                     let! hasNext = enumerator.MoveNextAsync().AsTask()
                                     if hasNext then
                                         let msg = enumerator.Current
-                                        do! processRequest nats natsResultSubject msg
+                                        do! Processing.handleRequest masterKey msg
                                     else
                                         continueLoop <- false
                                 with

@@ -20,7 +20,7 @@ module Crypto =
         let tag = encryptedData.[cipherTextSize..]
         let plainText = Array.zeroCreate<byte> cipherTextSize
 
-        use aes = new AesGcm(key)
+        use aes = new AesGcm(key, tagSize)
         aes.Decrypt(iv, cipherText, tag, plainText)
 
         plainText

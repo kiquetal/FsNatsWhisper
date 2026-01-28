@@ -10,6 +10,7 @@
     <Compile Include="Crypto.fs" />
     <Compile Include="S3.fs" />
     <Compile Include="Whisper.fs" />
+    <Compile Include="Processing.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
