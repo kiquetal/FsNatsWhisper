@@ -48,13 +48,24 @@ module Processing =
             printfn "Metadata - Version: %s, Algorithm: %s, Original file: %s" metadata.Version metadata.Algorithm metadata.OriginalFilename
 
             // 2. Decrypt the KEK (Key Encryption Key) using the master key
-            // The KEK in the metadata is base64 encoded and encrypted
+            // The KEK in the metadata is base64 encoded and likely encrypted
             let masterKeyBytes = Convert.FromBase64String(masterKey)
-            let kekBytes = Convert.FromBase64String(metadata.Kek)
+            let kekEncryptedBytes = Convert.FromBase64String(metadata.Kek)
             
-            // Note: Based on the metadata structure, it appears the KEK is stored directly
-            // If it needs decryption, we'll need IV information in the metadata
-            printfn "Using KEK from metadata for decryption."
+            printfn "Master key length: %d bytes" masterKeyBytes.Length
+            printfn "Encrypted KEK length: %d bytes" kekEncryptedBytes.Length
+            
+            // The KEK should be encrypted with the master key
+            // Extract IV from the encrypted KEK (first 12 bytes for AES-GCM)
+            if kekEncryptedBytes.Length < 12 then
+                failwith "Encrypted KEK is too short to contain IV"
+            
+            let kekIv = kekEncryptedBytes.[0..11]
+            let kekCiphertext = kekEncryptedBytes.[12..]
+            
+            printfn "Decrypting KEK using master key..."
+            let kekBytes = Crypto.decrypt masterKeyBytes kekIv kekCiphertext
+            printfn "Decrypted KEK length: %d bytes" kekBytes.Length
 
             // 3. Download encrypted audio file
             let! encryptedBytes = S3.downloadFile request.BucketName request.S3DataKey
