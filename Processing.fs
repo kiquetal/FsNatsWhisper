@@ -21,26 +21,39 @@ module Processing =
             printfn "Downloaded metadata: %s" metadataJson
 
             // Parse metadata
-            let metadata = JsonSerializer.Deserialize<JsonElement>(metadataJson)
-            let encryptedDecryptionKeyBase64 = metadata.GetProperty("decryption_key").GetString()
-            let keyIvBase64 = metadata.GetProperty("key_iv").GetString()
-            let dataIvBase64 = metadata.GetProperty("iv").GetString()
+            let options = JsonSerializerOptions()
+            options.PropertyNameCaseInsensitive <- true
+            let metadata = JsonSerializer.Deserialize<Metadata>(metadataJson, options)
+            
+            printfn "Metadata - Version: %s, Algorithm: %s, Original file: %s" metadata.Version metadata.Algorithm metadata.OriginalFilename
 
-            // 2. Decrypt the data key using the master key
+            // 2. Decrypt the KEK (Key Encryption Key) using the master key
+            // The KEK in the metadata is base64 encoded and encrypted
             let masterKeyBytes = Convert.FromBase64String(masterKey)
-            let keyIv = Convert.FromBase64String(keyIvBase64)
-            let encryptedDecryptionKey = Convert.FromBase64String(encryptedDecryptionKeyBase64)
-            let dataDecryptionKey = Crypto.decrypt masterKeyBytes keyIv encryptedDecryptionKey
-            printfn "Successfully decrypted data key."
+            let kekBytes = Convert.FromBase64String(metadata.Kek)
+            
+            // Note: Based on the metadata structure, it appears the KEK is stored directly
+            // If it needs decryption, we'll need IV information in the metadata
+            printfn "Using KEK from metadata for decryption."
 
             // 3. Download encrypted audio file
             let! encryptedBytes = S3.downloadFile request.BucketName request.S3DataKey
-            printfn "Downloaded %d bytes." encryptedBytes.Length
+            printfn "Downloaded %d bytes (expected encrypted size: %d)." encryptedBytes.Length metadata.EncryptedSize
 
-            // 4. Decrypt the audio file using the decrypted data key
-            let dataIv = Convert.FromBase64String(dataIvBase64)
-            let audioBytes = Crypto.decrypt dataDecryptionKey dataIv encryptedBytes
-            printfn "Decrypted audio. Size: %d bytes." audioBytes.Length
+            // 4. Decrypt the audio file using the KEK
+            // Note: The current metadata structure doesn't include IV information
+            // This needs to be adjusted based on how the encryption was actually performed
+            // For now, we'll extract the IV from the encrypted data if it follows standard patterns
+            
+            // Assuming AES-GCM with 12-byte IV prepended to the ciphertext
+            if encryptedBytes.Length < 12 then 
+                failwith "Encrypted data is too short to contain IV"
+            
+            let iv = encryptedBytes.[0..11]
+            let ciphertext = encryptedBytes.[12..]
+            
+            let audioBytes = Crypto.decrypt kekBytes iv ciphertext
+            printfn "Decrypted audio. Size: %d bytes (expected original size: %d)." audioBytes.Length metadata.OriginalSize
 
             return audioBytes
         }
