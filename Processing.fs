@@ -8,7 +8,6 @@ open NATS.Client.Core
 open NATS.Client.JetStream
 open System.Threading.Tasks
 open FsNatsWhisper.S3
-open FsNatsWhisper.Whisper
 
 module Processing =
 
@@ -63,12 +62,8 @@ module Processing =
                     let audioBytes = Crypto.decrypt dataDecryptionKey dataIv encryptedBytes
                     printfn "Decrypted audio. Size: %d bytes." audioBytes.Length
 
-                    // 5. Transcribe
-                    // transcribe returns Async<string>, convert to Task
-                    let! text = Whisper.transcribe audioBytes |> Async.StartAsTask
-                    printfn "Transcription: %s" text
-
-
+                    // TODO: Add transcription logic here later
+                    
                     // Acknowledge the message
                     do! msg.AckAsync().AsTask()
 
