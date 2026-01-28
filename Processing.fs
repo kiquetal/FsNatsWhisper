@@ -9,6 +9,7 @@ open NATS.Client.Core
 open NATS.Client.JetStream
 open System.Threading.Tasks
 open FsNatsWhisper.S3
+open System.IO
 
 module Processing =
 
@@ -85,6 +86,14 @@ module Processing =
             
             let audioBytes = Crypto.decrypt kekBytes iv ciphertext
             printfn "Decrypted audio. Size: %d bytes (expected original size: %d)." audioBytes.Length metadata.OriginalSize
+
+            // Save the decrypted file for debugging
+            let downloadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "downloads")
+            Directory.CreateDirectory(downloadsFolder) |> ignore
+            let safeFilename = Path.GetFileName(metadata.OriginalFilename) // Sanitize filename
+            let outputPath = Path.Combine(downloadsFolder, safeFilename)
+            File.WriteAllBytes(outputPath, audioBytes)
+            printfn "Saved decrypted file to: %s" outputPath
 
             return audioBytes
         }
