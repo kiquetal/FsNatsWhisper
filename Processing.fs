@@ -3,6 +3,7 @@ namespace FsNatsWhisper
 open System
 open System.Text
 open System.Text.Json
+open System.Threading
 open FsNatsWhisper.Domain
 open NATS.Client.Core
 open NATS.Client.JetStream
@@ -10,6 +11,25 @@ open System.Threading.Tasks
 open FsNatsWhisper.S3
 
 module Processing =
+
+    let startHeartbeat (msg: INatsJSMsg<NatsMemoryOwner<byte>>) (cancellationToken: CancellationToken) : Task =
+        // Start a background task that sends InProgress signals every 10 seconds
+        Task.Run(Func<Task>(fun () ->
+            task {
+                try
+                    while not cancellationToken.IsCancellationRequested do
+                        do! Task.Delay(TimeSpan.FromSeconds(10.0), cancellationToken)
+                        if not cancellationToken.IsCancellationRequested then
+                            do! msg.AckProgressAsync(Nullable(), cancellationToken)
+                            printfn "Sent heartbeat (AckProgress) to NATS"
+                with
+                | :? OperationCanceledException ->
+                    // Normal cancellation, ignore
+                    printfn "Heartbeat cancelled"
+                | ex ->
+                    printfn "Error in heartbeat: %s" ex.Message
+            }
+        ), cancellationToken)
 
     let downloadAndDecrypt (masterKey: string) (request: FileUploadRequest) : Async<byte[]> =
         async {
@@ -60,6 +80,9 @@ module Processing =
 
     let handleRequest (masterKey: string) (msg: INatsJSMsg<NatsMemoryOwner<byte>>) : Task =
         task {
+            // Create a cancellation token for the heartbeat
+            use heartbeatCts = new CancellationTokenSource()
+            
             try
                 // msg.Data is NatsMemoryOwner<byte>
                 let dataSpan = msg.Data.Span
@@ -80,17 +103,28 @@ module Processing =
                     printfn "Received empty or invalid request."
                     do! msg.AckAsync().AsTask() // Acknowledge to avoid reprocessing
                 else
-                    // Download metadata and decrypt the file
-                    let! audioBytes = downloadAndDecrypt masterKey request |> Async.StartAsTask
+                    // Start heartbeat to keep NATS from timing out during long operations
+                    printfn "Starting heartbeat for EventId: %s" request.EventId
+                    let _heartbeatTask = startHeartbeat msg heartbeatCts.Token
                     
-                    // TODO: Add transcription logic here later
-                    
-                    // Acknowledge the message
-                    do! msg.AckAsync().AsTask()
+                    try
+                        // Download metadata and decrypt the file
+                        let! audioBytes = downloadAndDecrypt masterKey request |> Async.StartAsTask
+                        
+                        // TODO: Add transcription logic here later
+                        
+                        // Acknowledge the message
+                        printfn "Processing complete for EventId: %s, acknowledging message" request.EventId
+                        do! msg.AckAsync().AsTask()
+                    finally
+                        // Stop the heartbeat
+                        heartbeatCts.Cancel()
 
             with ex ->
                 printfn "Error processing message: %s" ex.Message
                 printfn "Stack trace: %s" ex.StackTrace
+                // Stop the heartbeat
+                heartbeatCts.Cancel()
                 // Negative acknowledge on error so message can be redelivered
                 do! msg.NakAsync().AsTask()
         }
