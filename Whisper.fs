@@ -2,6 +2,7 @@ namespace FsNatsWhisper
 
 open System
 open System.IO
+open System.Diagnostics
 open Whisper.net
 open Whisper.net.Ggml
 
@@ -26,55 +27,70 @@ module Whisper =
                             printfn "Model downloaded."
         }
 
+    let private convertAudio (inputAudioData: byte[]) =
+        async {
+            let processStartInfo = ProcessStartInfo()
+            processStartInfo.FileName <- "ffmpeg"
+            processStartInfo.Arguments <- "-i pipe:0 -f wav -acodec pcm_s16le -ar 16000 -ac 1 pipe:1"
+            processStartInfo.RedirectStandardInput <- true
+            processStartInfo.RedirectStandardOutput <- true
+            processStartInfo.RedirectStandardError <- true
+            processStartInfo.UseShellExecute <- false
+            processStartInfo.CreateNoWindow <- true
+
+            use process = new Process()
+            process.StartInfo <- processStartInfo
+
+            try
+                process.Start() |> ignore
+
+                use outputStream = new MemoryStream()
+
+                // Concurrently write to stdin and read from stdout to avoid deadlock
+                let writeTask = process.StandardInput.BaseStream.WriteAsync(inputAudioData, 0, inputAudioData.Length)
+                let readTask = process.StandardOutput.BaseStream.CopyToAsync(outputStream)
+
+                // Wait for the write to complete, then close the input stream to signal completion
+                do! writeTask |> Async.AwaitTask
+                process.StandardInput.Close()
+
+                // Wait for the read to complete
+                do! readTask |> Async.AwaitTask
+
+                process.WaitForExit()
+
+                let errorOutput = process.StandardError.ReadToEnd()
+                if not (String.IsNullOrWhiteSpace(errorOutput)) then
+                    printfn "FFmpeg stderr: %s" errorOutput
+
+                return outputStream.ToArray()
+            with
+            | ex ->
+                printfn "Failed to run ffmpeg. Make sure it is installed and in your PATH. Error: %s" ex.Message
+                return Array.empty
+        }
+
     let transcribe (audioData: byte[]) =
         async {
             do! ensureModelExists()
 
+            // 1. Convert audio to the required format
+            let! wavPcmData = convertAudio audioData
+
             use factory = WhisperFactory.FromPath(modelFileName)
             let builder = factory.CreateBuilder().WithLanguage("auto")
             use processor = builder.Build()
-
-            // Converting byte[] (assuming 16-bit PCM, 16kHz, Mono) to float[] or stream
-            // If the input is a WAV file, we should skip the header (typically 44 bytes).
-            // A robust solution would parse the WAV header. For this example, we'll try to detect/skip simple headers.
             
-            let pcmData = 
-                // Simple heuristic: if it starts with "RIFF", skip 44 bytes.
-                if audioData.Length > 44 && 
-                   audioData.[0] = byte 'R' && audioData.[1] = byte 'I' && 
-                   audioData.[2] = byte 'F' && audioData.[3] = byte 'F' then
-                    // Parse WAV header to be safe, but for now skip 44 bytes standard header
-                    use ms = new MemoryStream(audioData)
-                    use reader = new BinaryReader(ms)
-                    // Skip header
-                    ms.Seek(44L, SeekOrigin.Begin) |> ignore
-                    reader.ReadBytes(audioData.Length - 44)
-                else
-                    audioData
-
-            // Whisper.net typically wants 16kHz PCM.
-            // We can feed the stream directly.
-            
-            use ms = new MemoryStream(pcmData)
+            use ms = new MemoryStream(wavPcmData)
             
             // Using a Task to consume the IAsyncEnumerable manually
             let collectSegments = task {
                 let mutable text = ""
-                // 'use!' should handle IAsyncDisposable
-                let enumerator = processor.ProcessAsync(ms).GetAsyncEnumerator()
-                try
-                     while! enumerator.MoveNextAsync() do
-                        let segment = enumerator.Current
-                        text <- text + segment.Text
-                with ex ->
-                    // Just explicitly dispose if needed or rely on 'use!' if I can use it.
-                    // But 'finally' doesn't support async.
-                    // Manual disposal:
-                    do! enumerator.DisposeAsync()
-                    raise ex
+                use enumerator = processor.ProcessAsync(ms).GetAsyncEnumerator()
+                while! enumerator.MoveNextAsync() do
+                    let segment = enumerator.Current
+                    text <- text + segment.Text
                 
-                // Success path disposal
-                do! enumerator.DisposeAsync()
                 return text
             }
             

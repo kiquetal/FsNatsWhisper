@@ -1,10 +1,10 @@
 # FsNatsWhisper
 
-FsNatsWhisper is an F# service that subscribes to a NATS subject, downloads an encrypted audio file from an S3-compatible storage (like Tigris), decrypts it, and performs speech-to-text transcription using the Whisper model.
+FsNatsWhisper is an F# service that subscribes to a NATS subject, downloads an encrypted audio file from an S3-compatible storage (like Tigris), decrypts it, and saves it locally. The next phase will be to perform speech-to-text transcription using the Whisper model.
 
 ## Architecture
 
-The following ASCII diagram illustrates the flow of data through the system:
+The following ASCII diagram illustrates the current flow of data through the system:
 
 ```ascii
                                     +-----------------+
@@ -17,34 +17,25 @@ The following ASCII diagram illustrates the flow of data through the system:
              (Publish Request)      |   FsNatsWhisper Service |
                                     +-------------------------+
                                              |
-                                             | (2) Download File (Bucket/Key)
+                                             | (2) Download Metadata & File
                                              v
                                     +-----------------+
                                     | S3 / Tigris     |
                                     +--------+--------+
                                              |
-                                             | (Encrypted Bytes)
+                                             | (Encrypted KEK & Data)
                                              v
                                     +-------------------------+
                                     |   Decryption (AES-GCM)  |
-                                    |   (Key/IV from Request) |
+                                    | (Master Key -> KEK -> Data) |
                                     +--------+----------------+
                                              |
-                                             | (Decrypted Audio PCM)
+                                             | (Decrypted Audio Bytes)
                                              v
                                     +-------------------------+
-                                    |   Whisper Engine        |
-                                    |   (Local Model)         |
-                                    +--------+----------------+
-                                             |
-                                             | (Transcribed Text)
-                                             v
+                                    |   Save to 'downloads/'  |
+                                    |   (For Debugging)       |
                                     +-------------------------+
-                                    |   NATS Publisher        |
-                                    +--------+----------------+
-                                             |
-             (Publish Result)                | (4) Publish to ReplyTo or
-             <-------------------------------+     'audio.transcription.result'
 ```
 
 ## Workflow Description
@@ -52,17 +43,17 @@ The following ASCII diagram illustrates the flow of data through the system:
 1.  **Subscription**: The application connects to a NATS server (default `nats://localhost:4222`) and subscribes to the subject `file.uploads` via JetStream.
 2.  **Message Processing**: Upon receiving a message, it parses the payload to extract S3 details including the bucket name, data key, and metadata key.
 3.  **Metadata Retrieval**: Downloads the metadata JSON file from S3 using the `s3_metadata_key`. This metadata contains:
-    - KEK (Key Encryption Key) in base64 format
+    - KEK (Key Encryption Key) in base64 format, which is itself encrypted.
     - Algorithm information (AES-GCM-256)
     - Original and encrypted file sizes
     - Verification status
-4.  **Key Decryption**: Uses the `MASTER_KEY` environment variable to decrypt the KEK from the metadata.
+4.  **Key Decryption**: Uses the `MASTER_KEY` environment variable to decrypt the KEK from the metadata. The KEK is expected to have a 12-byte IV prepended to it.
 5.  **File Download**: Downloads the encrypted audio file from S3 using the `s3_data_key`.
 6.  **File Decryption**: Decrypts the downloaded file using the AES-GCM algorithm with the decrypted KEK. The system expects:
     - A 12-byte IV prepended to the ciphertext
-    - A 16-byte authentication tag appended to the end of the ciphertext
-7.  **Transcription**: The decrypted raw audio is processed by `Whisper.net` (using the `ggml-tiny.bin` model, which is downloaded automatically if missing) to generate a text transcription.
-8.  **Result Publication**: The resulting text is published back to NATS, either to the `ReplyTo` subject specified in the request or to `audio.transcription.result`.
+    - A 16-byte authentication tag appended to the end of the ciphertext (handled by the `Crypto.decrypt` function)
+7.  **Save for Debugging**: The decrypted audio data is saved to a `downloads` folder in the project's root directory for verification.
+8.  **Next Steps**: The next phase of development will involve passing the decrypted audio bytes to a transcription engine and publishing the results back to NATS.
 
 ## Configuration
 
@@ -130,7 +121,7 @@ dotnet run
 ```json
 {
   "version": "1.0",
-  "kek": "base64_encoded_key_encryption_key",
+  "kek": "base64_encoded_and_encrypted_key_encryption_key",
   "algorithm": "AES-GCM-256",
   "original_filename": "audio.mp3",
   "original_size": 47299640,
@@ -141,10 +132,5 @@ dotnet run
 ```
 
 **Response (`audio.transcription.result`):**
-```json
-{
-  "event_id": "unique-event-identifier",
-  "transcribed_text": "The transcribed text from the audio file.",
-  "status": "success"
-}
-```
+
+*(This is a planned feature. The service does not currently publish a response.)*

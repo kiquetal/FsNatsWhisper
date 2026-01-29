@@ -13,6 +13,18 @@ open System.IO
 
 module Processing =
 
+    let private findProjectRoot (startDir: string) =
+        let rec find dir =
+            if File.Exists(Path.Combine(dir, "FsNatsWhisper.fsproj")) then
+                dir
+            else
+                let parent = Directory.GetParent(dir)
+                if parent = null then
+                    failwith "Could not find project root containing FsNatsWhisper.fsproj"
+                else
+                    find parent.FullName
+        find startDir
+
     let startHeartbeat (msg: INatsJSMsg<NatsMemoryOwner<byte>>) (cancellationToken: CancellationToken) : Task =
         // Start a background task that sends InProgress signals every 10 seconds
         Task.Run(Func<Task>(fun () ->
@@ -85,10 +97,11 @@ module Processing =
             let ciphertext = encryptedBytes.[12..]
             
             let audioBytes = Crypto.decrypt kekBytes iv ciphertext
-            printfn "Decrypted audio. Size: %d bytes (expected original size: %d)." audioBytes.Length metadata.OriginalSize
+            printfn"Decrypted audio. Size: %d bytes (expected original size: %d)." audioBytes.Length metadata.OriginalSize
 
             // Save the decrypted file for debugging
-            let downloadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "downloads")
+            let projectRoot = findProjectRoot(AppContext.BaseDirectory)
+            let downloadsFolder = Path.Combine(projectRoot, "downloads")
             Directory.CreateDirectory(downloadsFolder) |> ignore
             let safeFilename = Path.GetFileName(metadata.OriginalFilename) // Sanitize filename
             let outputPath = Path.Combine(downloadsFolder, safeFilename)
