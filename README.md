@@ -176,6 +176,19 @@ The test program will:
     -   When running locally with `dotnet run`, this is `bin/Debug/net10.0/downloads/`.
     -   When running inside Docker, this is `/app/downloads/`.
 
+### Retrieving Results from Docker
+
+If you run the test inside a Docker container, the generated `.txt` transcription will be stored inside the container's `/app/downloads/` directory. You can copy it to your host machine using the `docker cp` command:
+
+1.  **Find the Container ID**:
+    ```sh
+    docker ps -a
+    ```
+2.  **Copy the file**:
+    ```sh
+    docker cp <container_id>:/app/downloads/your-audio-file.txt ./downloads/
+    ```
+
 ### Docker Test Image
 
 The `Dockerfile` contains a special `COPY` command to support local testing.
