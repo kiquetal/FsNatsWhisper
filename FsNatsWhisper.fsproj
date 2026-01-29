@@ -12,6 +12,7 @@
     <Compile Include="Whisper.fs" />
     <Compile Include="Processing.fs" />
     <Compile Include="Program.fs" />
+    <Compile Include="Test.fs" />
   </ItemGroup>
 
   <ItemGroup>

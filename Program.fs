@@ -10,7 +10,7 @@ open System.Text.Json.Serialization
 
 module Program =
 
-    [<EntryPoint>]
+    // [<EntryPoint>] // Temporarily disabled for testing
     let main _argv =
         // Create cancellation token source for graceful shutdown
         use cts = new CancellationTokenSource()
