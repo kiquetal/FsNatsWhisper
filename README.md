@@ -55,6 +55,17 @@ The following ASCII diagram illustrates the current flow of data through the sys
 7.  **Save for Debugging**: The decrypted audio data is saved to a `downloads` folder in the project's root directory for verification.
 8.  **Next Steps**: The next phase of development will involve passing the decrypted audio bytes to a transcription engine and publishing the results back to NATS.
 
+---
+
+## Prerequisites
+
+Before running this application, you must have the following software installed and available in your system's PATH:
+
+-   **[.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)** (or newer)
+-   **[FFmpeg](https://ffmpeg.org/download.html)** - This is required for audio format conversion.
+
+---
+
 ## Configuration
 
 The application expects an S3-compatible environment and a NATS server.
