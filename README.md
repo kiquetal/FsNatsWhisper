@@ -134,3 +134,90 @@ dotnet run
 **Response (`audio.transcription.result`):**
 
 *(This is a planned feature. The service does not currently publish a response.)*
+
+---
+
+## Testing the Transcription Locally
+
+A test program, `Test.fs`, is included to allow for easy, local testing of the transcription functionality without needing to run the full NATS service.
+
+### How it Works
+
+The test program will:
+1.  Read a specified audio file from the `downloads` folder in your project root.
+2.  Run the full transcription process on that file (`ffmpeg` conversion and Whisper model).
+3.  Print the transcribed text to the console.
+4.  Save the full transcription to a `.txt` file in the `downloads` folder.
+
+### How to Run the Test
+
+1.  **Place an audio file** in the `downloads` folder.
+2.  **Edit `Test.fs`**: Open the `Test.fs` file and change the `audioFileName` variable to match the name of your test file.
+    ```fsharp
+    // in Test.fs
+    let audioFileName = "your-audio-file.mp3"
+    ```
+3.  **Run from your terminal**:
+    ```sh
+    dotnet run
+    ```
+    The project is already configured to run the test program. You will see the transcription progress and final text in your console.
+
+### Restoring the Main Service
+
+After you are done testing, you must revert the following changes to run the main NATS service:
+1.  **Uncomment the EntryPoint** in `Program.fs`:
+    ```fsharp
+    // Change this:
+    // [<EntryPoint>] // Temporarily disabled for testing
+    
+    // To this:
+    [<EntryPoint>]
+    ```
+2.  **Remove the test file** from the project. Open `FsNatsWhisper.fsproj` and delete this line:
+    ```xml
+    <Compile Include="Test.fs" />
+    ```
+3.  You can also delete the `Test.fs` file itself.
+
+---
+
+## Deployment (Docker)
+
+To prepare the application for a production deployment, you should build it in the `Release` configuration and package it as a Docker image.
+
+### Release Build
+
+A `Release` build is optimized for performance and excludes debugging information, resulting in a smaller and faster application. You can create a release build by running:
+
+```sh
+dotnet publish -c Release
+```
+
+This command will compile your application and place the optimized output in the `bin/Release/net10.0/publish/` directory.
+
+### Building the Docker Image
+
+A `Dockerfile` is included in the project to simplify the process of creating a production-ready container. This Dockerfile uses a multi-stage build to create a small, efficient final image. It also includes the installation of `ffmpeg`, which is a required dependency for audio conversion.
+
+To build the Docker image, run the following command from your project's root directory:
+
+```sh
+docker build -t fsnatswhisper .
+```
+
+### Running the Docker Container
+
+Once the image is built, you can run it as a container. You must pass all the required environment variables to the container at runtime.
+
+```sh
+docker run --rm -it \
+  -e MASTER_KEY="your_base64_encoded_master_key" \
+  -e NATS_URL="nats://host.docker.internal:4222" \
+  -e AWS_ACCESS_KEY_ID="your_access_key" \
+  -e AWS_SECRET_ACCESS_KEY="your_secret_key" \
+  -e AWS_REGION="auto" \
+  fsnatswhisper
+```
+
+**Note**: The `NATS_URL` is set to `nats://host.docker.internal:4222` to allow the container to connect to a NATS server running on your local machine (the Docker host). This may need to be changed depending on your network setup.

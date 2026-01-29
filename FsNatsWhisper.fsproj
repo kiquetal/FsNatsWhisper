@@ -23,4 +23,8 @@
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Dockerfile" />
+  </ItemGroup>
+
 </Project>
