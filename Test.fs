@@ -8,7 +8,7 @@ module Test =
     let main argv =
         // --- IMPORTANT ---
         // Change this to the name of the file in your 'downloads' folder.
-        let audioFileName = "right-wing.mp3.encrypted"
+        let audioFileName = "zeno.mp3.encrypted"
         // ---
 
         let audioFilePath = Path.Combine("downloads", audioFileName)

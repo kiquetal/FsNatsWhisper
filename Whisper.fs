@@ -8,7 +8,7 @@ open Whisper.net.Ggml
 
 module Whisper =
 
-    let modelFileName = "ggml-tiny.bin"
+    let modelFileName = "ggml-base.bin"
 
     let ensureModelExists () =
         async {
@@ -18,7 +18,7 @@ module Whisper =
                             let downloader = WhisperGgmlDownloader(client)
                             
                             // Get stream from downloader
-                            use! modelStream = downloader.GetGgmlModelAsync(GgmlType.Tiny, QuantizationType.NoQuantization, System.Threading.CancellationToken.None) |> Async.AwaitTask
+                            use! modelStream = downloader.GetGgmlModelAsync(GgmlType.Base, QuantizationType.NoQuantization, System.Threading.CancellationToken.None) |> Async.AwaitTask
                             
                             // Copy to file
                             use fileStream = File.OpenWrite(modelFileName)
