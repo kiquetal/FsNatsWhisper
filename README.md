@@ -258,3 +258,17 @@ docker run --rm -it \
 ```
 
 **Note**: The `NATS_URL` is set to `nats://host.docker.internal:4222` to allow the container to connect to a NATS server running on your local machine (the Docker host). This may need to be changed depending on your network setup.
+
+## GitHub Releases
+
+The project includes a GitHub Action that automatically builds and pushes multi-architecture Docker images to the GitHub Container Registry (GHCR) and creates GitHub Releases.
+
+### Automated Workflow
+- **On Push to `main`**: Builds and pushes a Docker image tagged with a timestamp and `:latest`.
+- **On Tag (`v*`)**: 
+  1. Builds and pushes a Docker image tagged with the version name (e.g., `:v1.0.0`) and `:latest`.
+  2. Creates a new **GitHub Release** with the same tag and automatically generated release notes.
+
+### Multi-Architecture Support
+The workflow builds images for both `linux/amd64` and `linux/arm64`, ensuring compatibility across different server environments and Apple Silicon.
+
