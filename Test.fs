@@ -1,5 +1,6 @@
 namespace FsNatsWhisper
 
+open System
 open System.IO
 open FsNatsWhisper.Whisper
 
@@ -11,7 +12,11 @@ module Test =
         let audioFileName = "zeno.mp3.encrypted"
         // ---
 
-        let audioFilePath = Path.Combine("downloads", audioFileName)
+        // Look for the 'downloads' folder in the same directory as the application executable.
+        // This works consistently both locally and inside the Docker container.
+        let baseDirectory = AppContext.BaseDirectory
+        printfn "Base directory for test: %s" baseDirectory
+        let audioFilePath = Path.Combine(baseDirectory, "downloads", audioFileName)
 
         printfn "--- Starting Transcription Test ---"
         printfn "Attempting to transcribe file: %s" audioFilePath

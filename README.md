@@ -162,7 +162,7 @@ The test program will:
 
 ### How to Run the Test
 
-1.  **Place an audio file** in the `downloads` folder.
+1.  **Place an audio file** in the `downloads` folder at the root of your project.
 2.  **Edit `Test.fs`**: Open the `Test.fs` file and change the `audioFileName` variable to match the name of your test file.
     ```fsharp
     // in Test.fs
@@ -172,7 +172,20 @@ The test program will:
     ```sh
     dotnet run
     ```
-    The project is already configured to run the test program. You will see the transcription progress and final text in your console.
+    The project is already configured to run the test program. The program will look for the `downloads` folder in the same directory as its executable.
+    -   When running locally with `dotnet run`, this is `bin/Debug/net10.0/downloads/`.
+    -   When running inside Docker, this is `/app/downloads/`.
+
+### Docker Test Image
+
+The `Dockerfile` contains a special `COPY` command to support local testing.
+
+```dockerfile
+# --- For Local Testing Only ---
+COPY downloads/ ./downloads/
+```
+
+This line takes the `downloads` folder from your project root and copies it into the `/app/downloads` directory inside the container. This allows the test program to find the audio file when you run the test image. For a clean production build, you should comment out this line.
 
 ### Restoring the Main Service
 

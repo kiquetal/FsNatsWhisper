@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Install FFmpeg
@@ -17,7 +17,7 @@ COPY . .
 RUN dotnet publish "FsNatsWhisper.fsproj" -c Release -o /app/publish
 
 # Stage 2: Create the final, smaller runtime image
-FROM mcr.microsoft.com/dotnet/runtime:8.0 AS final
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 
 # Install FFmpeg runtime dependency
@@ -25,6 +25,12 @@ RUN apt-get update && apt-get install -y ffmpeg
 
 # Copy the published output from the build stage
 COPY --from=build /app/publish .
+
+# --- For Local Testing Only ---
+# The following line copies your local 'downloads' folder into the container
+# so the Test.fs program can find the audio file.
+# For a clean production image, you should comment out or remove this line.
+COPY downloads/ ./downloads/
 
 # Set the entry point to run the application
 # The application will be started by running 'dotnet FsNatsWhisper.dll'
