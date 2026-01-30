@@ -7,7 +7,7 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 ARG TARGETARCH
 
-# ❌ REMOVED: RUN apt-get install -y ffmpeg
+# REMOVED: RUN apt-get install -y ffmpeg
 # We do NOT need video tools just to compile C# code. This saves 5+ minutes.
 
 COPY FsNatsWhisper.fsproj .
